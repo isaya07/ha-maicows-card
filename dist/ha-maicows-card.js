@@ -1,4 +1,4 @@
-const e=customElements.get("hui-masonry-view")?Object.getPrototypeOf(customElements.get("hui-masonry-view")):Object.getPrototypeOf(customElements.get("hui-view")),t=e.prototype.html,i=e.prototype.css;customElements.define("maico-vmc-card",class extends e{static get properties(){return{hass:{type:Object},config:{type:Object},_entities:{type:Object},_history:{type:Array}}}constructor(){super(),this._history=[],this._historyInterval=null}static getConfigElement(){return document.createElement("maico-vmc-card-editor")}static getStubConfig(){return{name:"VMC",show_efficiency:!0,show_graph:!0,graph_hours:24}}setConfig(e){this.config={name:e.name||"VMC",show_efficiency:!1!==e.show_efficiency,show_graph:!1!==e.show_graph,graph_hours:e.graph_hours||24,graph_color:e.graph_color||"var(--accent-color, var(--primary-color))",show_humidity:!1!==e.show_humidity,show_fan_mode:!1!==e.show_fan_mode,climate_entity:e.climate_entity||null,...e}}connectedCallback(){super.connectedCallback(),this.config?.show_graph&&(this._fetchHistory(),this._historyInterval=setInterval(()=>this._fetchHistory(),3e5))}disconnectedCallback(){super.disconnectedCallback(),this._historyInterval&&clearInterval(this._historyInterval)}async _fetchHistory(){const e=this._discoverEntities();if(!e.humidity||!this.hass)return;const t=(new Date).toISOString(),i=new Date(Date.now()-60*this.config.graph_hours*60*1e3).toISOString();try{const n=`history/period/${i}?filter_entity_id=${e.humidity}&end_time=${t}&minimal_response&no_attributes`,a=await this.hass.callApi("GET",n);a&&a[0]&&(this._history=a[0].filter(e=>!isNaN(parseFloat(e.state))).map(e=>({time:new Date(e.last_changed).getTime(),value:parseFloat(e.state)})),this.requestUpdate())}catch(e){console.warn("Failed to fetch history:",e)}}_generateGraphPath(){if(!this._history||this._history.length<2)return"";const e=this._history.map(e=>e.value),t=Math.min(...e)-5,i=Math.max(...e)+5-t||1,n=this._history.map((e,n)=>({x:5+n/(this._history.length-1)*390,y:75-(e.value-t)/i*70}));let a=`M ${n[0].x},${n[0].y}`;for(let e=0;e<n.length-1;e++){const t=n[0===e?e:e-1],i=n[e],o=n[e+1],s=n[e+2>=n.length?e+1:e+2],r=.8;a+=` C ${i.x+(o.x-t.x)*r},${i.y+(o.y-t.y)*r} ${o.x-(s.x-i.x)*r},${o.y-(s.y-i.y)*r} ${o.x},${o.y}`}return{line:a,fill:`${a} L ${n[n.length-1].x},80 L 5,80 Z`}}_discoverEntities(){if(!this.hass)return{};const e={},t=Object.keys(this.hass.states);return e.climate=this.config.climate_entity||t.find(e=>e.startsWith("climate.maico")),e.temp_inlet=t.find(e=>e.includes("maico")&&(e.includes("entrant")||e.includes("inlet")||e.includes("air_entrant")||e.includes("lufteintritt"))),e.temp_exhaust=t.find(e=>e.includes("maico")&&(e.includes("rejete")||e.includes("exhaust")||e.includes("air_rejete")||e.includes("fortluft"))),e.temp_extract=t.find(e=>e.includes("maico")&&(e.includes("extrait")||e.includes("extract")||e.includes("air_extrait")||e.includes("abluft"))),e.temp_supply=t.find(e=>e.includes("maico")&&e.startsWith("sensor.")&&(e.includes("souffle")||e.includes("supply_air_temp")||e.includes("zuluft"))&&!e.includes("fan")&&!e.includes("ventilateur")&&!e.includes("geschwindigkeit")),e.temp_room=t.find(e=>e.includes("maico")&&(e.includes("ambiant")||e.includes("room_temp")||e.includes("raumtemperatur"))),e.humidity=t.find(e=>e.includes("maico")&&(e.includes("humidite")||e.includes("humidity")||e.includes("feuchtigkeit"))),e.efficiency=t.find(e=>e.includes("maico")&&(e.includes("rendement")||e.includes("efficiency")||e.includes("effizienz"))),e.fan=t.find(e=>e.startsWith("fan.maico")),e.bypass=t.find(e=>e.includes("maico")&&(e.includes("bypass")||e.includes("etat_bypass"))),e.filter_device=t.find(e=>e.includes("maico")&&(e.includes("filter_device")||e.includes("filtre_appareil")||e.includes("geratefilter"))),e.filter_outdoor=t.find(e=>e.includes("maico")&&(e.includes("filter_outdoor")||e.includes("filtre_exterieur")||e.includes("filtre_ext")||e.includes("aussenfilter"))),e.filter_room=t.find(e=>e.includes("maico")&&(e.includes("filter_room")||e.includes("filtre_piece")||e.includes("filtre_interieur")||e.includes("raumfilter"))),e}_getState(e){if(!e||!this.hass.states[e])return"—";const t=this.hass.states[e].state;return"unavailable"===t||"unknown"===t?"—":t}_getAttribute(e,t){return e&&this.hass.states[e]?this.hass.states[e].attributes[t]:null}_getFanModeLabel(e){return{off:"Arrêt",auto:"Humidité",low:"Réduit",medium:"Normal",high:"Intensif"}[e]||e||"—"}_calculateEfficiency(e){if(e.efficiency)return this._getState(e.efficiency);const t=parseFloat(this._getState(e.temp_inlet)),i=parseFloat(this._getState(e.temp_supply)),n=parseFloat(this._getState(e.temp_extract));if(isNaN(t)||isNaN(i)||isNaN(n))return"—";return((i-t)/(n-t)*100).toFixed(1)}_handleFanUp(){const e=this._discoverEntities();if(!e.climate)return;const t=["off","low","medium","high"],i=this._getAttribute(e.climate,"fan_mode")||"low",n=t.indexOf(i),a=Math.min(n+1,t.length-1);this.hass.callService("climate","set_fan_mode",{entity_id:e.climate,fan_mode:t[a]})}_handleFanDown(){const e=this._discoverEntities();if(!e.climate)return;const t=["off","low","medium","high"],i=this._getAttribute(e.climate,"fan_mode")||"low",n=t.indexOf(i),a=Math.max(n-1,0);this.hass.callService("climate","set_fan_mode",{entity_id:e.climate,fan_mode:t[a]})}_handleMoreInfo(){const e=this._discoverEntities(),t=new CustomEvent("hass-more-info",{bubbles:!0,composed:!0,detail:{entityId:e.climate||e.fan}});this.dispatchEvent(t)}render(){if(!this.hass)return t``;const e=this._discoverEntities(),i=e.climate?this.hass.states[e.climate]:null,n=this._calculateEfficiency(e),a=i?.attributes?.current_temperature||this._getState(e.temp_room),o=this._getState(e.humidity),s=i?.attributes?.fan_mode||"—",r=this._getState(e.bypass),c=this._getState(e.filter_device),l=this._getState(e.filter_outdoor),d=this._getState(e.filter_room),h=this._generateGraphPath();return t`
+const e=customElements.get("hui-masonry-view")?Object.getPrototypeOf(customElements.get("hui-masonry-view")):Object.getPrototypeOf(customElements.get("hui-view")),t=e.prototype.html,i=e.prototype.css,o={en:{efficiency:"Efficiency",temp_outdoor:"Outdoor Air",temp_exhaust:"Exhaust Air",temp_extract:"Extract Air",temp_supply:"Supply Air",open:"Open",closed:"Closed",filter_device:"Device Filter",filter_outdoor:"Outdoor Filter",filter_room:"Room Filter",mode_off:"Off",mode_auto:"Humidity",mode_low:"Reduced",mode_medium:"Normal",mode_high:"Intensive"},fr:{efficiency:"Rendement",temp_outdoor:"Air ext",temp_exhaust:"Air rejeté",temp_extract:"Air extrait",temp_supply:"Air insufflé",open:"Ouvert",closed:"Fermé",filter_device:"Filtre appareil",filter_outdoor:"Filtre extérieur",filter_room:"Filtre pièce",mode_off:"Arrêt",mode_auto:"Humidité",mode_low:"Réduit",mode_medium:"Normal",mode_high:"Intensif"},de:{efficiency:"Wirkungsgrad",temp_outdoor:"Außenluft",temp_exhaust:"Fortluft",temp_extract:"Abluft",temp_supply:"Zuluft",open:"Offen",closed:"Geschlossen",filter_device:"Gerätefilter",filter_outdoor:"Außenfilter",filter_room:"Raumfilter",mode_off:"Aus",mode_auto:"Feuchte",mode_low:"Reduziert",mode_medium:"Normal",mode_high:"Intensiv"}};customElements.define("maico-vmc-card",class extends e{static get properties(){return{hass:{type:Object},config:{type:Object},_entities:{type:Object},_history:{type:Array}}}_localize(e){const t=this.hass?.language||"en";return o[t]&&o[t][e]||o.en[e]||e}constructor(){super(),this._history=[],this._historyInterval=null}static getConfigElement(){return document.createElement("maico-vmc-card-editor")}static getStubConfig(){return{name:"VMC",show_efficiency:!0,show_graph:!0,graph_hours:24}}setConfig(e){this.config={name:e.name||"VMC",show_efficiency:!1!==e.show_efficiency,show_graph:!1!==e.show_graph,graph_hours:e.graph_hours||24,graph_color:e.graph_color||"var(--accent-color, var(--primary-color))",show_humidity:!1!==e.show_humidity,show_fan_mode:!1!==e.show_fan_mode,climate_entity:e.climate_entity||null,...e}}connectedCallback(){super.connectedCallback(),this.config?.show_graph&&(this._fetchHistory(),this._historyInterval=setInterval(()=>this._fetchHistory(),3e5))}disconnectedCallback(){super.disconnectedCallback(),this._historyInterval&&clearInterval(this._historyInterval)}async _fetchHistory(){const e=this._discoverEntities();if(!e.humidity||!this.hass)return;const t=(new Date).toISOString(),i=new Date(Date.now()-60*this.config.graph_hours*60*1e3).toISOString();try{const o=`history/period/${i}?filter_entity_id=${e.humidity}&end_time=${t}&minimal_response&no_attributes`,n=await this.hass.callApi("GET",o);n&&n[0]&&(this._history=n[0].filter(e=>!isNaN(parseFloat(e.state))).map(e=>({time:new Date(e.last_changed).getTime(),value:parseFloat(e.state)})),this.requestUpdate())}catch(e){console.warn("Failed to fetch history:",e)}}_generateGraphPath(){if(!this._history||this._history.length<2)return"";let e=this._history;if(e.length>30){const t=Math.ceil(e.length/30);e=e.filter((i,o)=>o%t===0||o===e.length-1)}const t=e.map(e=>e.value),i=Math.min(...t)-5,o=Math.max(...t)+5-i||1,n=e.map((t,n)=>({x:5+n/(e.length-1)*390,y:75-(t.value-i)/o*70}));let a=`M ${n[0].x},${n[0].y}`;for(let e=0;e<n.length-1;e++){const t=n[0===e?e:e-1],i=n[e],o=n[e+1],s=n[e+2>=n.length?e+1:e+2],r=.25;a+=` C ${i.x+(o.x-t.x)*r},${i.y+(o.y-t.y)*r} ${o.x-(s.x-i.x)*r},${o.y-(s.y-i.y)*r} ${o.x},${o.y}`}return{line:a,fill:`${a} L ${n[n.length-1].x},80 L 5,80 Z`}}_discoverEntities(){if(!this.hass)return{};const e={},t=Object.keys(this.hass.states);return e.climate=this.config.climate_entity||t.find(e=>e.startsWith("climate.maico")),e.temp_inlet=t.find(e=>e.includes("maico")&&(e.includes("entrant")||e.includes("inlet")||e.includes("air_entrant")||e.includes("lufteintritt"))),e.temp_exhaust=t.find(e=>e.includes("maico")&&(e.includes("rejete")||e.includes("exhaust")||e.includes("air_rejete")||e.includes("fortluft"))),e.temp_extract=t.find(e=>e.includes("maico")&&(e.includes("extrait")||e.includes("extract")||e.includes("air_extrait")||e.includes("abluft"))),e.temp_supply=t.find(e=>e.includes("maico")&&e.startsWith("sensor.")&&(e.includes("souffle")||e.includes("supply_air_temp")||e.includes("zuluft"))&&!e.includes("fan")&&!e.includes("ventilateur")&&!e.includes("geschwindigkeit")),e.temp_room=t.find(e=>e.includes("maico")&&(e.includes("ambiant")||e.includes("room_temp")||e.includes("raumtemperatur"))),e.humidity=t.find(e=>e.includes("maico")&&(e.includes("humidite")||e.includes("humidity")||e.includes("feuchtigkeit"))),e.efficiency=t.find(e=>e.includes("maico")&&(e.includes("rendement")||e.includes("efficiency")||e.includes("effizienz"))),e.fan=t.find(e=>e.startsWith("fan.maico")),e.bypass=t.find(e=>e.includes("maico")&&(e.includes("bypass")||e.includes("etat_bypass"))),e.filter_device=t.find(e=>e.includes("maico")&&(e.includes("filter_device")||e.includes("filtre_appareil")||e.includes("geratefilter"))&&(e.includes("days")||e.includes("jours")||e.includes("restant")||e.includes("verbleibend"))),e.filter_outdoor=t.find(e=>e.includes("maico")&&(e.includes("filter_outdoor")||e.includes("filtre_exterieur")||e.includes("filtre_ext")||e.includes("aussenfilter"))&&(e.includes("days")||e.includes("jours")||e.includes("restant")||e.includes("verbleibend"))),e.filter_room=t.find(e=>e.includes("maico")&&(e.includes("filter_room")||e.includes("filtre_piece")||e.includes("filtre_interieur")||e.includes("raumfilter"))&&(e.includes("days")||e.includes("jours")||e.includes("restant")||e.includes("verbleibend"))),e}_getState(e){if(!e||!this.hass.states[e])return"—";const t=this.hass.states[e].state;return"unavailable"===t||"unknown"===t?"—":t}_getAttribute(e,t){return e&&this.hass.states[e]?this.hass.states[e].attributes[t]:null}_getFanModeLabel(e){return{off:this._localize("mode_off"),auto:this._localize("mode_auto"),low:this._localize("mode_low"),medium:this._localize("mode_medium"),high:this._localize("mode_high")}[e]||e||"—"}_calculateEfficiency(e){if(e.efficiency)return this._getState(e.efficiency);const t=parseFloat(this._getState(e.temp_inlet)),i=parseFloat(this._getState(e.temp_supply)),o=parseFloat(this._getState(e.temp_extract));if(isNaN(t)||isNaN(i)||isNaN(o))return"—";return((i-t)/(o-t)*100).toFixed(1)}_handleFanUp(){const e=this._discoverEntities();if(!e.climate)return;const t=["off","low","medium","high"],i=this._getAttribute(e.climate,"fan_mode")||"low",o=t.indexOf(i),n=Math.min(o+1,t.length-1);this.hass.callService("climate","set_fan_mode",{entity_id:e.climate,fan_mode:t[n]})}_handleFanDown(){const e=this._discoverEntities();if(!e.climate)return;const t=["off","low","medium","high"],i=this._getAttribute(e.climate,"fan_mode")||"low",o=t.indexOf(i),n=Math.max(o-1,0);this.hass.callService("climate","set_fan_mode",{entity_id:e.climate,fan_mode:t[n]})}_handleMoreInfo(){const e=this._discoverEntities(),t=new CustomEvent("hass-more-info",{bubbles:!0,composed:!0,detail:{entityId:e.climate||e.fan}});this.dispatchEvent(t)}render(){if(!this.hass)return t``;const e=this._discoverEntities(),i=e.climate?this.hass.states[e.climate]:null,o=this._calculateEfficiency(e),n=i?.attributes?.current_temperature||this._getState(e.temp_room),a=this._getState(e.humidity),s=i?.attributes?.fan_mode||"—",r=this._getState(e.bypass),c=this._getState(e.filter_device),l=this._getState(e.filter_outdoor),d=this._getState(e.filter_room),h=this._generateGraphPath();return t`
       <ha-card>
         <!-- Background graph -->
         ${this.config.show_graph&&h?t`
@@ -24,9 +24,9 @@ const e=customElements.get("hui-masonry-view")?Object.getPrototypeOf(customEleme
               </div>
               <div class="header-center">
                 ${this.config.show_efficiency?t`
-                      <span class="efficiency">
-                        <ha-icon icon="mdi:swap-horizontal-bold"></ha-icon>
-                        Rendement: ${n} %
+                      <span class="efficiency" title="${this._localize("efficiency")}">
+                        <ha-icon icon="mdi:gauge"></ha-icon>
+                        ${o} %
                       </span>
                     `:""}
               </div>
@@ -36,11 +36,11 @@ const e=customElements.get("hui-masonry-view")?Object.getPrototypeOf(customEleme
             <div class="card-content">
               <!-- Left temperatures -->
               <div class="temp-info left-top">
-                <span class="temp-label">Air ext</span>
+                <span class="temp-label">${this._localize("temp_outdoor")}</span>
                 <span class="temp-value">${this._getState(e.temp_inlet)}</span>
               </div>
               <div class="temp-info left-bottom">
-                <span class="temp-label">Air rejeté</span>
+                <span class="temp-label">${this._localize("temp_exhaust")}</span>
                 <span class="temp-value">${this._getState(e.temp_exhaust)}</span>
               </div>
 
@@ -49,11 +49,11 @@ const e=customElements.get("hui-masonry-view")?Object.getPrototypeOf(customEleme
 
               <!-- Right temperatures -->
               <div class="temp-info right-top">
-                <span class="temp-label">Air extrait</span>
+                <span class="temp-label">${this._localize("temp_extract")}</span>
                 <span class="temp-value">${this._getState(e.temp_extract)}</span>
               </div>
               <div class="temp-info right-bottom">
-                <span class="temp-label">Air insufflé</span>
+                <span class="temp-label">${this._localize("temp_supply")}</span>
                 <span class="temp-value">${this._getState(e.temp_supply)}</span>
               </div>
             </div>
@@ -64,12 +64,12 @@ const e=customElements.get("hui-masonry-view")?Object.getPrototypeOf(customEleme
             <div class="side-info">
               <div class="info-item">
                 <ha-icon icon="mdi:thermometer"></ha-icon>
-                <span>${a}</span>
+                <span>${n}</span>
               </div>
               ${this.config.show_humidity?t`
                     <div class="info-item humidity">
                       <ha-icon icon="mdi:water-percent"></ha-icon>
-                      <span>${o}</span>
+                      <span>${a}</span>
                     </div>
                   `:""}
               ${this.config.show_fan_mode?t`
@@ -105,25 +105,25 @@ const e=customElements.get("hui-masonry-view")?Object.getPrototypeOf(customEleme
           ${"—"!==r?t`
                 <div class="footer-item bypass ${"on"===r?"open":"closed"}">
                   <ha-icon icon="mdi:valve"></ha-icon>
-                  <span>${"on"===r?"Ouvert":"Fermé"}</span>
+                  <span>${"on"===r?this._localize("open"):this._localize("closed")}</span>
                 </div>
               `:""}
           ${"—"!==c?t`
                 <div class="footer-item filter ${parseInt(c)<30?"warning":""}">
                   <ha-icon icon="mdi:air-filter"></ha-icon>
-                  <span title="Filtre appareil">${c}j</span>
+                  <span title="${this._localize("filter_device")}">${c}j</span>
                 </div>
               `:""}
           ${"—"!==l?t`
                 <div class="footer-item filter ${parseInt(l)<30?"warning":""}">
                   <ha-icon icon="mdi:weather-windy"></ha-icon>
-                  <span title="Filtre extérieur">${l}j</span>
+                  <span title="${this._localize("filter_outdoor")}">${l}j</span>
                 </div>
               `:""}
           ${"—"!==d?t`
                 <div class="footer-item filter ${parseInt(d)<30?"warning":""}">
                   <ha-icon icon="mdi:home-outline"></ha-icon>
-                  <span title="Filtre pièce">${d}j</span>
+                  <span title="${this._localize("filter_room")}">${d}j</span>
                 </div>
               `:""}
         </div>
@@ -198,21 +198,32 @@ const e=customElements.get("hui-masonry-view")?Object.getPrototypeOf(customEleme
       }
 
       .card-header {
-        display: grid;
-        grid-template-columns: 1fr auto 1fr;
+        display: flex;
         align-items: center;
         margin-bottom: 8px;
         cursor: pointer;
         min-height: 24px;
+        gap: 8px;
       }
       
-      .header-left { justify-self: start; }
-      .header-center { justify-self: center; }
-      .header-right { justify-self: end; }
+      .header-left { 
+        flex: 0 1 auto;
+        min-width: 0;
+      }
+      .header-center { 
+        flex: 1;
+        display: flex;
+        justify-content: center;
+        min-width: 0;
+      }
+      .header-right { 
+        flex: 0 0 auto;
+      }
 
       .name {
         font-size: 18px;
         font-weight: bold;
+        white-space: nowrap;
       }
 
       .efficiency {
@@ -221,6 +232,10 @@ const e=customElements.get("hui-masonry-view")?Object.getPrototypeOf(customEleme
         gap: 4px;
         font-size: 14px;
         opacity: 0.8;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
       }
 
       .efficiency ha-icon {
@@ -458,7 +473,7 @@ const e=customElements.get("hui-masonry-view")?Object.getPrototypeOf(customEleme
           ></ha-switch>
         </ha-formfield>
       </div>
-    `:t``}_nameChanged(e){this._updateConfig("name",e.target.value)}_efficiencyChanged(e){this._updateConfig("show_efficiency",e.target.checked)}_graphChanged(e){this._updateConfig("show_graph",e.target.checked)}_humidityChanged(e){this._updateConfig("show_humidity",e.target.checked)}_fanModeChanged(e){this._updateConfig("show_fan_mode",e.target.checked)}_updateConfig(e,t){const i={...this.config,[e]:t},n=new CustomEvent("config-changed",{detail:{config:i},bubbles:!0,composed:!0});this.dispatchEvent(n)}static get styles(){return i`
+    `:t``}_nameChanged(e){this._updateConfig("name",e.target.value)}_efficiencyChanged(e){this._updateConfig("show_efficiency",e.target.checked)}_graphChanged(e){this._updateConfig("show_graph",e.target.checked)}_humidityChanged(e){this._updateConfig("show_humidity",e.target.checked)}_fanModeChanged(e){this._updateConfig("show_fan_mode",e.target.checked)}_updateConfig(e,t){const i={...this.config,[e]:t},o=new CustomEvent("config-changed",{detail:{config:i},bubbles:!0,composed:!0});this.dispatchEvent(o)}static get styles(){return i`
       .editor {
         display: flex;
         flex-direction: column;
@@ -469,4 +484,4 @@ const e=customElements.get("hui-masonry-view")?Object.getPrototypeOf(customEleme
       ha-textfield {
         width: 100%;
       }
-    `}}),window.customCards=window.customCards||[],window.customCards.push({type:"maico-vmc-card",name:"Maico VMC Card",description:"Carte personnalisée pour VMC Maico WS avec auto-découverte",preview:!0,documentationURL:"https://github.com/isaya07/ha-maicows-card"}),console.info("%c MAICO-VMC-CARD %c 1.0.0","color: white; background: #039be5; font-weight: bold;","color: #039be5; background: white; font-weight: bold;");
+    `}}),window.customCards=window.customCards||[],window.customCards.push({type:"maico-vmc-card",name:"Maico VMC Card",description:"Carte personnalisée pour VMC Maico WS avec auto-découverte",preview:!0,documentationURL:"https://github.com/isaya07/ha-maicows-card"}),console.info("%c MAICO-VMC-CARD %c 1.1.0","color: white; background: #039be5; font-weight: bold;","color: #039be5; background: white; font-weight: bold;");
