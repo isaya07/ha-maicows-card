@@ -572,4 +572,4 @@ const e=customElements.get("hui-masonry-view")?Object.getPrototypeOf(customEleme
       ha-textfield {
         width: 100%;
       }
-    `}}),window.customCards=window.customCards||[],window.customCards.push({type:"maico-vmc-card",name:"Maico VMC Card",description:"Carte personnalisée pour VMC Maico WS avec auto-découverte",preview:!0,documentationURL:"https://github.com/isaya07/ha-maicows-card"}),console.info("%c MAICO-VMC-CARD %c 1.2.0","color: white; background: #039be5; font-weight: bold;","color: #039be5; background: white; font-weight: bold;");
+    `}}),window.customCards=window.customCards||[],window.customCards.push({type:"maico-vmc-card",name:"Maico VMC Card",description:"Carte personnalisée pour VMC Maico WS avec auto-découverte",preview:!0,documentationURL:"https://github.com/isaya07/ha-maicows-card"}),console.info("%c MAICO-VMC-CARD %c 1.4.4","color: white; background: #039be5; font-weight: bold;","color: #039be5; background: white; font-weight: bold;");
